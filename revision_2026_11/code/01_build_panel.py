@@ -22,6 +22,7 @@ aggregate.
 """
 
 import argparse
+import gc
 import glob
 import json
 import os
@@ -46,24 +47,28 @@ GEOJSON_URL = "https://raw.githubusercontent.com/plotly/datasets/master/geojson-
 # =============================================================================
 
 def read_cert_year(path):
-    """Read one year file (all columns needed), dropping Excel padding rows."""
+    """Read one year file (needed columns only), dropping Excel padding rows.
+
+    Memory-lean: the ten condition fields are reduced to an AD flag and then
+    dropped, so a full year fits comfortably in < 1 GB of RAM."""
     for enc in ("utf-8-sig", "cp1252"):
         try:
-            df = pd.read_csv(path, dtype=str, low_memory=False, encoding=enc)
+            df = pd.read_csv(path, dtype=str, low_memory=False, encoding=enc,
+                             usecols=lambda c: c.strip().lstrip("\ufeff") in READ_COLS)
             break
         except UnicodeDecodeError:
             continue
-    df.columns = [c.strip().lstrip("﻿") for c in df.columns]
-    df = df[[c for c in READ_COLS if c in df.columns]]
-    df = df[~df.isna().all(axis=1)].copy()          # blank padding rows
+    df.columns = [c.strip().lstrip("\ufeff") for c in df.columns]
+    df = df[~df.isna().all(axis=1)]                      # blank padding rows
+    smc = [c for c in V1.SMC_COLS if c in df.columns]
+    is_ad = np.zeros(len(df), dtype=bool)
+    for c in smc:
+        is_ad |= (df[c].map(lambda s: V1.fingerprint(s) if isinstance(s, str) else "") == TARGET).to_numpy()
+    df = df.drop(columns=smc).copy()
+    df["is_ad"] = is_ad
     df["created"] = pd.to_datetime(df["Created Date"], errors="coerce", format="mixed")
     df["tp_months"] = pd.to_numeric(df["Treatment Period"], errors="coerce")
-    for c in V1.SMC_COLS:
-        if c in df.columns:
-            df[c] = df[c].map(lambda s: V1.fingerprint(s) if isinstance(s, str) else "")
-    smc = [c for c in V1.SMC_COLS if c in df.columns]
-    df["is_ad"] = (df[smc] == TARGET).any(axis=1)
-    df["n_conditions"] = (df[smc] != "").sum(axis=1)
+    df = df.drop(columns=["Created Date", "Treatment Period"])
     return df
 
 
@@ -110,14 +115,21 @@ def allocate_corrected(zip_series, hud):
 
 
 def within_year_duplicate_bound(ad, year):
-    """Upper bound on certifications that could duplicate a person within a year.
+    """Describe the ways one person can contribute >1 certification in a calendar year.
 
-    A person can contribute a second certification created in the same calendar
-    year only if (a) an earlier same-year certification ended (created date plus
-    treatment period) before December 31, so a renewal could fall in the same
-    year, or (b) a certification was canceled, created in error, or invalid and
-    then re-issued. Counting every such certification as a potential duplicate
-    gives a conservative upper bound; the true number is lower.
+    Without a patient identifier duplicates cannot be counted. Three mechanisms:
+      (a) a short treatment period (<12 months) that ended before December 31,
+          allowing a renewal created in the same year;
+      (b) a certification that was canceled, created in error, or invalid and
+          then re-issued;
+      (c) an early renewal: renewals are created before the prior certification
+          expires (the 2022 record holds 4,665 'Pending Renewal' AD certifications
+          created in Nov-Dec), so a person whose prior 12-month certification was
+          created early in the year can receive a renewal late in the same year.
+    (a) and (b) are counted directly. For (c) only a theoretical maximum can be
+    given: the number of 12-month certifications created in the first 60 days of
+    the year (each could pair with at most one early renewal created in the last
+    60 days). The March-October sensitivity analysis removes every such pair.
     """
     end_of_year = pd.Timestamp(year=year, month=12, day=31, hour=23, minute=59)
     ends = pd.Series(pd.NaT, index=ad.index, dtype="datetime64[ns]")
@@ -125,16 +137,28 @@ def within_year_duplicate_bound(ad, year):
         if pd.isna(months):
             continue
         ends.loc[idx] = ad.loc[idx, "created"] + pd.DateOffset(months=int(months))
-    could_renew = ends.notna() & (ends <= end_of_year)
-    reissue = ad["Certification Status"].isin(["Canceled", "Created in Error", "Invalid"])
+    a_ = ends.notna() & (ends <= end_of_year)
+    b_ = ad["Certification Status"].isin(["Canceled", "Created in Error", "Invalid"])
+    doy = ad["created"].dt.dayofyear
+    ndays = 366 if pd.Timestamp(year=year, month=12, day=31).dayofyear == 366 else 365
+    first60_12 = int(((doy <= 60) & (ad["tp_months"] == 12)).sum())
+    last60 = int((doy > ndays - 60).sum())
+    c_max = min(first60_12, last60)
     return {
         "year": year,
         "ad_certifications": int(len(ad)),
-        "ended_before_dec31_could_renew_same_year": int(could_renew.sum()),
-        "canceled_error_invalid_could_be_reissued": int(reissue.sum()),
-        "upper_bound_potential_duplicates": int((could_renew | reissue).sum()),
-        "upper_bound_pct": 100 * float((could_renew | reissue).mean()),
+        "a_short_period_ended_in_year": int(a_.sum()),
+        "b_canceled_error_invalid": int(b_.sum()),
+        "a_or_b_n": int((a_ | b_).sum()),
+        "a_or_b_pct": 100 * float((a_ | b_).mean()),
+        "c_12mo_created_first_60_days": first60_12,
+        "c_created_last_60_days": last60,
+        "c_theoretical_max_early_renewal_pairs": c_max,
+        "c_theoretical_max_pct": 100 * c_max / len(ad),
+        "pending_renewal_created_nov_dec": int((ad["Certification Status"].eq("Pending Renewal")
+                                                & ad["created"].dt.month.isin([11, 12])).sum()),
         "treatment_period_12_months_pct": 100 * float((ad["tp_months"] == 12).mean()),
+        "created_mar_oct_n": int(ad["created"].dt.month.between(3, 10).sum()),
     }
 
 
@@ -273,12 +297,24 @@ def exposure(states, year, rule):
 # Main build
 # =============================================================================
 
-def build(data_dir, key):
+def build(data_dir, key, years=None, refresh=False):
+    years = years or R.YEARS
     R.ensure_dirs()
     acc_state, acc_status, acc_tp, acc_month, dup_rows, unm_rows = [], [], [], [], [], []
     panel_parts = []
 
-    for year in R.YEARS:
+    cache_dir = os.path.join(R.TABLE_DIR, "_cache")
+    os.makedirs(cache_dir, exist_ok=True)
+    for year in years:
+        cpath = os.path.join(cache_dir, f"year_{year}.pkl")
+        if os.path.exists(cpath) and not refresh:
+            c = pd.read_pickle(cpath)
+            acc_state.append(c["state"]); acc_status.append(c["status"]); acc_tp.append(c["tp"])
+            acc_month.append(c["month"]); dup_rows.append(c["dup"]); unm_rows.append(c["unm"])
+            panel_parts.append(c["acs"])
+            print(f"{year}: loaded from cache", flush=True)
+            continue
+        n0 = len(panel_parts)
         print(f"{year}: reading certification record ...", flush=True)
         path = os.path.join(data_dir, f"certifications({year}).csv")
         df = read_cert_year(path)
@@ -291,6 +327,16 @@ def build(data_dir, key):
         # --- submitted allocation, reproduced exactly with the v1 functions ---
         v1_long = V1.load_certifications(path)
         v1 = V1.county_cert_counts(v1_long, hud, R.CONDITION).set_index("county_fips")["cert_count"]
+
+        # --- March-October subset with the submitted allocation (removes any
+        # early-renewal pair, which needs one certification in Jan-Feb and one in
+        # Nov-Dec of the same year). Row indices identify the same certification
+        # in both reads of the file; this is asserted.
+        v1_ad_ids = set(v1_long.loc[v1_long["condition"].map(V1.fingerprint) == TARGET, "cert_id"])
+        assert v1_ad_ids == set(df.index[df["is_ad"]]), "certification row alignment failed"
+        maroct_ids = set(df.index[df["is_ad"] & df["created"].dt.month.between(3, 10)])
+        v1_maroct = V1.county_cert_counts(v1_long[v1_long["cert_id"].isin(maroct_ids)], hud,
+                                          R.CONDITION).set_index("county_fips")["cert_count"]
 
         # --- corrected allocation, all statuses and valid statuses only -------
         corr, n_unm, unm = allocate_corrected(ad["Zipcode"].rename("Zipcode"), hud)
@@ -321,6 +367,7 @@ def build(data_dir, key):
             "created_date_min": ad["created"].min(),
             "created_date_max": ad["created"].max(),
             "created_dates_outside_year": int((ad["created"].dt.year != year).sum()),
+            "AD_created_before_2019_07_20": int((ad["created"] < pd.Timestamp(2019, 7, 20)).sum()),
         })
         st = ad["Certification Status"].value_counts().rename("n").reset_index()
         st.columns = ["status", "n"]
@@ -335,6 +382,7 @@ def build(data_dir, key):
         mo["year"] = year
         acc_month.append(mo)
         dup_rows.append(within_year_duplicate_bound(ad, year))
+        n_all = len(df)
         u = unm.rename("n").reset_index()
         u.columns = ["zip_as_recorded_first5", "n"]
         u["year"] = year
@@ -345,13 +393,24 @@ def build(data_dir, key):
         acs["certs_v1"] = acs["county_fips"].map(v1).fillna(0).astype(int)
         acs["certs_corrected"] = acs["county_fips"].map(corr.round()).fillna(0).astype(int)
         acs["certs_valid_status"] = acs["county_fips"].map(corr_valid.round()).fillna(0).astype(int)
+        acs["certs_mar_oct"] = acs["county_fips"].map(v1_maroct).fillna(0).astype(int)
         panel_parts.append(acs)
         print(f"   AD certs {len(ad):,}  county sum v1 {int(v1.sum()):,}  "
-              f"corrected {int(corr.round().sum()):,}  ACS: {acs['acs_source'].iloc[0]}")
+              f"corrected {int(corr.round().sum()):,}  ACS: {acs['acs_source'].iloc[0]}", flush=True)
+        pd.to_pickle({"state": acc_state[-1], "status": acc_status[-1], "tp": acc_tp[-1],
+                      "month": acc_month[-1], "dup": dup_rows[-1], "unm": unm_rows[-1],
+                      "acs": panel_parts[-1]}, cpath)
+        del df, ad, valid, v1_long
+        gc.collect()
+
+    if sorted(years) != sorted(R.YEARS):
+        print("Cached years:", sorted(int(f[5:9]) for f in os.listdir(cache_dir) if f.startswith("year_")),
+              "- run again without --years (or with the remaining years) to assemble the panel.")
+        return None
 
     panel = pd.concat(panel_parts, ignore_index=True)
     for col, num in (("rate_v1", "certs_v1"), ("rate_corrected", "certs_corrected"),
-                     ("rate_valid_status", "certs_valid_status")):
+                     ("rate_valid_status", "certs_valid_status"), ("rate_mar_oct", "certs_mar_oct")):
         panel[col] = panel[num] / panel["adult_pop"] * R.RATE_PER
     panel["rate_hh_adults"] = panel["certs_v1"] / panel["hh_adult_pop"] * R.RATE_PER
 
@@ -386,7 +445,7 @@ def build(data_dir, key):
     panel = panel.sort_values(["year", "county_fips"]).reset_index(drop=True)
     first = ["year", "county_fips", "county_name", "adult_pop", "hh_adult_pop", "gq_pop",
              "certs_v1", "rate_v1", "certs_corrected", "rate_corrected",
-             "certs_valid_status", "rate_valid_status", "rate_hh_adults",
+             "certs_valid_status", "rate_valid_status", "certs_mar_oct", "rate_mar_oct", "rate_hh_adults",
              "pct_rural_2020", "rucc_2023", "nonmetro", "border_states", "border_any_state",
              "exposed_any", "exposed_half"]
     panel = panel[first + [c for c in panel.columns if c not in first]]
@@ -440,13 +499,14 @@ def selftest():
     check("residential ratio split", abs(out["B"] - (6 + 8 + 1)) < 1e-9)  # 0.75*8 + 0.8*10 + 0.5*2
     check("zero residential ratio falls back to total ratio", abs(out["A"] - (4 + 2 + 2 + 1)) < 1e-9)
     ad = pd.DataFrame({
-        "created": pd.to_datetime(["2024-01-15", "2024-08-01", "2024-03-01", "2024-02-01"]),
+        "created": pd.to_datetime(["2024-01-15", "2024-08-01", "2024-02-20", "2024-02-01"]),
         "tp_months": [3, 3, 12, 6],
         "Certification Status": ["Expired", "Active", "Active", "Canceled"],
     })
     b = within_year_duplicate_bound(ad, 2024)
-    check("duplicate bound: short periods ending in-year", b["ended_before_dec31_could_renew_same_year"] == 3)
-    check("duplicate bound: union with re-issue statuses", b["upper_bound_potential_duplicates"] == 3)
+    check("duplicates (a): short periods ending in-year", b["a_short_period_ended_in_year"] == 3)
+    check("duplicates (a) or (b)", b["a_or_b_n"] == 3)
+    check("duplicates (c): 12-month certs created in first 60 days", b["c_12mo_created_first_60_days"] == 1)
     check("exposure rule 'any' (NJ in 2022)", exposure(["NJ"], 2022, "any") == 1)
     check("exposure rule 'half' (NY not in 2022, yes in 2023)",
           exposure(["NY"], 2022, "half") == 0 and exposure(["NY"], 2023, "half") == 1)
@@ -459,6 +519,10 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--data-dir", default=R.PROJECT_DIR)
     ap.add_argument("--selftest", action="store_true")
+    ap.add_argument("--years", default=None,
+                    help="e.g. 2019-2021: process only these years and cache them "
+                         "(outputs/tables/_cache); a later run without --years assembles the panel")
+    ap.add_argument("--refresh", action="store_true", help="ignore cached years and recompute")
     a = ap.parse_args()
     if a.selftest:
         sys.exit(0 if selftest() else 1)
@@ -466,4 +530,8 @@ if __name__ == "__main__":
     if not k:
         print("No Census API key found: using cached ACS values; household-adult "
               "denominator and 2020 rural share will be missing.\n")
-    build(a.data_dir, k)
+    yrs = None
+    if a.years:
+        lo, hi = (int(x) for x in a.years.split("-")) if "-" in a.years else (int(a.years),) * 2
+        yrs = [y for y in R.YEARS if lo <= y <= hi]
+    build(a.data_dir, k, yrs, a.refresh)

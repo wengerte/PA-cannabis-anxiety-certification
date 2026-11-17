@@ -262,6 +262,7 @@ def s6_sensitivity(P):
         ("Denominator: adults in households (ACS B09021)", lambda d: d, "rate_hh_adults"),
         ("Corrected ZIP-to-county allocation", lambda d: d, "rate_corrected"),
         ("Valid-status certifications only", lambda d: d, "rate_valid_status"),
+        ("Certifications created March-October only", lambda d: d, "rate_mar_oct"),
     ]
     rows = []
     for y in R.YEARS:
@@ -418,16 +419,20 @@ def s7_border(P):
         # Robustness: county-specific linear trends (absorbs differential growth /
         # saturation that would otherwise load onto the exposure indicator)
         d["t"] = d["year"] - 2022
-        res2 = smf.glm(f"certs_v1 ~ C(county_fips) + C(year) + C(county_fips):t + {rule}", data=d,
-                       offset=d["off"], family=sm.families.Poisson()).fit(
-            cov_type="cluster", cov_kwds={"groups": pd.factorize(d["county_fips"])[0]})
-        b, se = res2.params[rule], res2.bse[rule]
-        fe_rows.append(dict(model="Same + county-specific linear trends (robustness)",
-                            exposure_rule=("sales began any time in year" if rule == "exposed_any"
-                                           else "sales began by July 1 of year"),
-                            n_exposed_county_years=int(d[rule].sum()),
-                            IRR=np.exp(b), CI_low=np.exp(b - 1.96 * se), CI_high=np.exp(b + 1.96 * se),
-                            p=res2.pvalues[rule]))
+        row = dict(model="Same + county-specific linear trends (robustness)",
+                   exposure_rule=("sales began any time in year" if rule == "exposed_any"
+                                  else "sales began by July 1 of year"),
+                   n_exposed_county_years=int(d[rule].sum()))
+        try:
+            res2 = smf.glm(f"certs_v1 ~ C(county_fips) + C(year) + C(county_fips):t + {rule}", data=d,
+                           offset=d["off"], family=sm.families.Poisson()).fit(
+                cov_type="cluster", cov_kwds={"groups": pd.factorize(d["county_fips"])[0]})
+            b, se = res2.params[rule], res2.bse[rule]
+            row.update(IRR=np.exp(b), CI_low=np.exp(b - 1.96 * se), CI_high=np.exp(b + 1.96 * se),
+                       p=res2.pvalues[rule])
+        except Exception as e:                                   # noqa: BLE001
+            row.update(IRR=np.nan, CI_low=np.nan, CI_high=np.nan, p=np.nan, note=f"did not converge: {e}")
+        fe_rows.append(row)
     return W, desc, pd.DataFrame(tests), ny_ranks, pd.DataFrame(fe_rows)
 
 
@@ -453,7 +458,8 @@ def summary_consistency(A, S5, S6, S5c=None):
             row[f"years_sig_{model}"] = int((sub.p < .05).sum())
             row[f"IRR_2024_{model}"] = sub[sub.year == 2024].IRR_per_SD.iloc[0]
         for v in ("Excluding Philadelphia", "Excluding Forest",
-                  "Denominator: adults in households (ACS B09021)"):
+                  "Denominator: adults in households (ACS B09021)",
+                  "Certifications created March-October only"):
             sub = S6[(S6.measure == m) & (S6.variant == v)]
             if len(sub):
                 row[f"years_sig_spearman_{v}"] = int((sub.p_rho < .05).sum())
@@ -470,7 +476,7 @@ README_ROWS = [
     ("S5_NB_IRR", "Negative binomial (NB2) models, offset log(adult population): IRR per 1 SD of each measure, unadjusted and rurality-adjusted, with Moran's I of Pearson residuals", "R1.2, R1.3"),
     ("S5b_Rurality", "Spearman rho of each measure (and the rate) with rurality; partial Spearman of rate with each measure controlling for rurality", "R1.3"),
     ("S5c_SpatialError", "Spatial-error (ML) regression of log(rate) on each standardized measure; rate ratio per SD and spatial lambda (sensitivity for residual autocorrelation)", "R1.2"),
-    ("S6_Sensitivity", "Pearson/Spearman under: excluding Philadelphia, excluding Forest, both, household-adult denominator, corrected ZIP allocation, valid-status certifications only; deltas vs. primary", "R1.4, R1.1"),
+    ("S6_Sensitivity", "Pearson/Spearman under: excluding Philadelphia, excluding Forest, both, household-adult denominator, corrected ZIP allocation, valid-status certifications only, certifications created March-October only (removes possible same-year renewal pairs); deltas vs. primary", "R1.4, R1.1"),
     ("S6b_Influence_2024", "Top-3 DFBETA (slope) counties for each 2024 OLS fit; threshold 2/sqrt(n)", "R1.4"),
     ("R2.8_LFP_Age", "Labor force participation vs. % aged 65+; partial correlations and NB IRR for LFP adjusted for % 65+", "R2.8"),
     ("S7a_Panel_2020_2024", "NB GEE (exchangeable, clustered by county): ratio of IRR per year (measure x year interaction), 2020-2024", "R1.8"),

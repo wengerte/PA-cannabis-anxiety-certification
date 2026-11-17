@@ -48,20 +48,23 @@ def draw(ax, shapes, colors, edge="white"):
     ax.axis("off")
 
 
-def forest(xl):
+def forest(xl, which="main"):
     S5 = pd.read_excel(xl, "S5_NB_IRR")
     SE = pd.read_excel(xl, "S5c_SpatialError")
     y = R.PRIMARY_YEAR
     series = [("Negative binomial, unadjusted", S5[(S5.year == y) & (S5.model == "Unadjusted")]
                .set_index("measure")[["IRR_per_SD", "CI_low", "CI_high"]], "#1f4e79", "o")]
     adj = S5[(S5.year == y) & S5.model.str.startswith("Adjusted")]
+    if which == "main":                       # main figure: unadjusted vs. RUCC-adjusted only
+        adj = adj[adj.model.str.contains("RUCC")]
     for k, (model, sub) in enumerate(adj.groupby("model")):
         series.append((model.replace("Adjusted: ", "Negative binomial, adjusted for "),
                        sub.set_index("measure")[["IRR_per_SD", "CI_low", "CI_high"]],
                        ["#c55a11", "#7f6000"][k % 2], "s"))
-    series.append(("Spatial-error model (log rate)",
-                   SE[SE.year == y].set_index("measure")[["SEM_rate_ratio_per_SD", "SEM_CI_low", "SEM_CI_high"]]
-                   .set_axis(["IRR_per_SD", "CI_low", "CI_high"], axis=1), "#548235", "^"))
+    if which == "all":
+        series.append(("Spatial-error model (log rate)",
+                       SE[SE.year == y].set_index("measure")[["SEM_rate_ratio_per_SD", "SEM_CI_low", "SEM_CI_high"]]
+                       .set_axis(["IRR_per_SD", "CI_low", "CI_high"], axis=1), "#548235", "^"))
 
     labels = R.MEASURES[::-1]
     fig, ax = plt.subplots(figsize=(6.5, 7))
@@ -85,8 +88,9 @@ def forest(xl):
         if R.DOMAIN_OF[labels[k]] != R.DOMAIN_OF[labels[k - 1]]:
             ax.axhline(k - 0.5, color="#cccccc", lw=0.6)
     ax.legend(loc="lower center", bbox_to_anchor=(0.4, -0.2), ncol=2, frameon=False, fontsize=8)
-    save(fig, "Fig_R1_forest_2024")
-    pd.DataFrame(rows).to_csv(os.path.join(R.FIG_DIR, "Fig_R1_forest_2024_PRISM.csv"), index=False)
+    name = "Fig_R1_forest_2024" if which == "main" else "FigS_R1_forest_2024_all_models"
+    save(fig, name)
+    pd.DataFrame(rows).to_csv(os.path.join(R.FIG_DIR, f"{name}_PRISM.csv"), index=False)
 
 
 def lisa(xl, shapes):
@@ -127,6 +131,7 @@ if __name__ == "__main__":
     R.ensure_dirs()
     xl = pd.ExcelFile(os.path.join(R.TABLE_DIR, "Revision_Results.xlsx"))
     shp = pa_shapes()
-    forest(xl)
+    forest(xl, "main")
+    forest(xl, "all")
     lisa(xl, shp)
     border(xl, shp)

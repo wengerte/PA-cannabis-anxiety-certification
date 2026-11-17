@@ -22,6 +22,7 @@ xl = pd.ExcelFile(os.path.join(T, "Revision_Results.xlsx"))
 acc = pd.ExcelFile(os.path.join(T, "R1.1_certification_accounting.xlsx"))
 P = pd.read_csv(os.path.join(T, "county_year_panel.csv"), dtype={"county_fips": str})
 S = {n: pd.read_excel(xl, n) for n in xl.sheet_names}
+S6 = S["S6_Sensitivity"]
 
 doc = Document()
 st = doc.styles["Normal"]
@@ -80,7 +81,7 @@ def table(df, fmt=None, widths=None):
             elif isinstance(v, (float, np.floating)):
                 if pd.isna(v):
                     c.text = ""
-                elif float(v).is_integer() and abs(v) >= 1:
+                elif float(v).is_integer() and (abs(v) >= 1 or v == 0):
                     c.text = f"{int(v):,}" if col != "year" else str(int(v))
                 else:
                     c.text = f"{v:.3f}"
@@ -119,39 +120,50 @@ h("R1.1  Assignment of certifications to years; certifications vs. persons; 2019
 a = pd.read_excel(acc, "Statewide_vs_County")
 d = pd.read_excel(acc, "WithinYear_Duplicate_Bound")
 m = pd.read_excel(acc, "Created_Month_by_Year").set_index("month")
-pre = int(m.loc[1:6, 2019].sum())
+pre = int(a.loc[a.year == 2019, "AD_created_before_2019_07_20"].iloc[0])
+mo = S6[S6.variant == "Certifications created March-October only"]
 bullet("Year assignment: each annual DOH file contains only certifications created in that calendar year "
        f"(created dates outside the year: {int(a.created_dates_outside_year.sum())} across all years). A "
        "certification is therefore assigned to the year it was created; status (Active, Expired, etc.) is the "
-       "status at extraction.")
-bullet("No patient identifier exists, so certifications cannot be de-duplicated to persons. An upper bound on "
-       "within-year duplication: a second same-year certification for one person is possible only if an earlier "
-       "same-year certification ended before December 31 (created date + treatment period) or was canceled, "
-       f"created in error, or invalid. These cover at most {d.upper_bound_pct.max():.2f}% of AD certifications in "
-       f"any year ({d.upper_bound_pct.iloc[-1]:.2f}% in 2024). "
-       f"{d.treatment_period_12_months_pct.min():.1f}-{d.treatment_period_12_months_pct.max():.1f}% of AD "
-       "certifications carry a 12-month treatment period.")
-bullet(f"2019 is a partial year: {int(m.loc[7:12, 2019].sum()):,} of {int(m[2019].sum()):,} 2019 AD "
-       f"certifications were created July-December. {pre} were created January-June, before AD became a "
-       "qualifying condition (July 20, 2019); these are most likely certifications later amended to add AD "
-       "[confirm with DOH if this is mentioned].")
-table(d[["year", "ad_certifications", "ended_before_dec31_could_renew_same_year",
-         "canceled_error_invalid_could_be_reissued", "upper_bound_potential_duplicates", "upper_bound_pct"]],
-      {"ad_certifications": lambda v: f"{int(v):,}", "upper_bound_pct": lambda v: f"{v:.2f}%"})
+       "status when the file was extracted.")
+bullet("No patient identifier exists, so certifications cannot be de-duplicated to persons. One person can "
+       "contribute more than one certification to a calendar year in three ways: (a) a treatment period shorter "
+       "than 12 months that ended before December 31, followed by a same-year renewal; (b) a certification that "
+       "was canceled, created in error, or invalid and then re-issued; (c) an early renewal - renewals are created "
+       "before the prior certification expires (the 2022 file holds "
+       f"{int(d.loc[d.year == 2022, 'pending_renewal_created_nov_dec'].iloc[0]):,} pending renewals created in "
+       "November-December), so a person whose prior 12-month certification was created early in a year can be "
+       f"renewed late in the same year. (a) or (b) applies to at most {d.a_or_b_pct.max():.1f}% of AD "
+       f"certifications in any year ({d.a_or_b_pct.iloc[-1]:.2f}% in 2024). (c) cannot be counted; its "
+       f"theoretical maximum is {d.c_theoretical_max_pct.iloc[1:].min():.0f}-{d.c_theoretical_max_pct.iloc[1:].max():.0f}% "
+       "in 2020-2024 (every 12-month certification created in the first 60 days of the year paired with an early "
+       "renewal in the last 60 days); the true figure is lower because renewal is not universal and repeat "
+       "renewals are created about 12 months apart.")
+bullet("Sensitivity analysis that removes mechanism (c): rates recomputed from certifications created March-"
+       "October only (no same-year early-renewal pair can fall entirely in that window). Maximum change in any "
+       f"Table 1 coefficient: |dr| = {mo.delta_r.abs().max():.3f}, |drho| = {mo.delta_rho.abs().max():.3f}; "
+       f"significant measure-years by Spearman {int((mo.p_rho < .05).sum())} vs. "
+       f"{int((A.p_rho < .05).sum())} in the primary analysis (sheet S6_Sensitivity).")
+bullet(f"2019 is a partial year: AD became a qualifying condition on July 20, 2019. {int(m.loc[7:12, 2019].sum()):,} "
+       f"of {int(m[2019].sum()):,} 2019 AD certifications were created July-December; {pre} carry a created date "
+       "before July 20, 2019. These are most likely certifications created earlier and later amended to add AD, "
+       "or entered as the condition was being added [confirm with DOH before stating a reason].")
+dd = d[["year", "ad_certifications", "a_or_b_n", "a_or_b_pct", "c_theoretical_max_early_renewal_pairs",
+        "c_theoretical_max_pct", "treatment_period_12_months_pct"]].copy()
+table(dd, {"a_or_b_pct": lambda v: f"{v:.2f}%", "c_theoretical_max_pct": lambda v: f"{v:.1f}%",
+           "treatment_period_12_months_pct": lambda v: f"{v:.1f}%"})
 para("Statewide vs. county totals (submitted pipeline):", bold=True)
 table(a[["year", "AD_certifications_statewide", "AD_certs_unmatched_ZIP_dropped_v1",
          "AD_certs_double_counted_zero_ratio_ZIPs_v1", "rounding_net_v1", "county_sum_submitted_v1",
-         "AD_share_of_all_pct"]], {"AD_share_of_all_pct": lambda v: f"{v:.1f}%",
-                                   "AD_certifications_statewide": lambda v: f"{int(v):,}",
-                                   "county_sum_submitted_v1": lambda v: f"{int(v):,}"})
+         "AD_share_of_all_pct"]], {"AD_share_of_all_pct": lambda v: f"{v:.1f}%"})
 r24 = a[a.year == 2024].iloc[0]
 pop24 = P[P.year == 2024].adult_pop.sum()
 para(f"2024 reconciliation: {int(r24.AD_certifications_statewide):,} statewide - "
      f"{int(r24.AD_certs_unmatched_ZIP_dropped_v1)} with ZIP codes absent from the HUD crosswalk + "
      f"{int(r24.AD_certs_double_counted_zero_ratio_ZIPs_v1)} double-counted in multi-county ZIPs with zero "
      f"residential ratios + {int(r24.rounding_net_v1)} rounding = {int(r24.county_sum_submitted_v1):,}. "
-     f"Rate statewide 2024 = {r24.county_sum_submitted_v1 / pop24 * 1000:.1f} per 1,000 adults.")
-S6 = S["S6_Sensitivity"]
+     f"Statewide 2024: {r24.county_sum_submitted_v1 / pop24 * 1000:.1f} certifications per 1,000 adults "
+     f"({r24.county_sum_submitted_v1 / pop24 * 100:.1f}%; an upper bound on the share of adults certified).")
 corr_d = S6[S6.variant == "Corrected ZIP-to-county allocation"]
 val_d = S6[S6.variant == "Valid-status certifications only"]
 para(f"Allocation fix (ZIP+4 matched; zero-ratio ZIPs split by total-address ratio): maximum change in any "
@@ -162,14 +174,17 @@ para(f"Allocation fix (ZIP+4 matched; zero-ratio ZIPs split by total-address rat
      "corrected allocation (Table S1 changes by a handful of certifications).")
 suggest("Each annual record contains the certifications created in that calendar year, and certifications "
         "were assigned to the year of creation. Because the de-identified record contains no patient "
-        "identifier, counts and rates refer to certifications rather than unique patients. Certifications "
-        "are valid for up to 12 months (12 months for >99% of AD certifications from 2022 onward), so one "
-        "person can contribute more than one certification in a calendar year only after an early expiration "
-        f"or a re-issue; such certifications accounted for at most {d.upper_bound_pct.max():.1f}% of AD "
-        "certifications in any year. AD became a qualifying condition on July 20, 2019; 2019 is therefore a "
-        f"partial year. Statewide totals exceed the sum of county totals by "
-        f"{int(r24.AD_certifications_statewide - r24.county_sum_submitted_v1)} certifications in 2024 because "
-        "a small number of records had ZIP codes that could not be matched to the HUD crosswalk.")
+        "identifier, counts and rates refer to certifications rather than unique patients; an individual can "
+        "contribute more than one certification to a year through a short treatment period, a re-issued "
+        "certification, or a renewal created before the prior certification expired. Results were unchanged "
+        "when rates were computed from certifications created between March and October only, which excludes "
+        "any same-year renewal pair (Table S6). AD became a qualifying condition on July 20, 2019; 2019 is "
+        "therefore a partial year. Statewide totals exceed the sum of county totals by "
+        f"{int(r24.AD_certifications_statewide - r24.county_sum_submitted_v1)} certifications in 2024 "
+        f"({int(r24.AD_certs_unmatched_ZIP_dropped_v1)} records with ZIP codes absent from the HUD crosswalk, "
+        "partly offset by allocation and rounding).")
+para("Check the 'results were unchanged' sentence against the March-October numbers above before using it.",
+     italic=True)
 
 # ---------------------------------------------------------------- R1.2
 h("R1.2  Exploratory framing; spatial autocorrelation; population-weighted count models")
@@ -200,13 +215,16 @@ para(f"Residual Moran's I remained positive in the count models (2024 range "
      f"{u24.resid_MoranI.min():.2f}-{u24.resid_MoranI.max():.2f}), so spatial-error models of log(rate) were "
      f"fitted as a sensitivity analysis (sheet S5c_SpatialError; spatial lambda in 2024 "
      f"{se[se.year == 2024].SEM_lambda.min():.2f}-{se[se.year == 2024].SEM_lambda.max():.2f}).")
+para("The suggested text below describes the unadjusted count models; after adjustment for rurality most of "
+     "these associations attenuate (R1.3), so combine it with the R1.3 text.", italic=True)
 suggest("Certification rates were spatially clustered in every year (Moran's I = "
         f"{mp.MoranI.min():.2f}-{mp.MoranI.max():.2f}, P <= {mp.p_perm.max():.3f}; Table S4), with a high-rate "
         "cluster in central and northeastern Pennsylvania and a low-rate cluster along the northern tier. In "
         "population-weighted negative binomial models, the associations with age structure, educational "
         "attainment, and labor force participation persisted, whereas associations with income were "
-        "attenuated in later years and those with racial and ethnic composition were not significant (Table S5). "
-        "Results were similar in spatial-error models that account for residual spatial autocorrelation.")
+        "were borderline in 2024 and those with racial and ethnic composition were not significant (Table S5). "
+        "Spatial-error models, which account for residual spatial autocorrelation, gave the same pattern for age, "
+        "income, educational attainment, and labor force participation (Table S5).")
 para("Also delete the 'consistency reduces false positives' sentence (lines 129-131). For information, "
      f"{int(((A.q_BH_r < .05) | (A.q_BH_rho < .05)).sum())} of {len(A)} measure-years remain significant by at "
      "least one method after Benjamini-Hochberg correction across all 204 tests (sheet A_Reproduction).",
@@ -271,6 +289,11 @@ if rur_available:
             "attainment were no longer significant, indicating that these bivariate associations largely reflect "
             "the urban-rural gradient. The positive association with labor force participation persisted after "
             "adjustment for rurality and for the population share aged 65 and over.")
+    para("Interpretive caveat: rurality is not a pure confounder. Income, education, and age structure are part "
+         "of what distinguishes rural from urban counties, and rurality may also proxy access (dispensary and "
+         "certifying-practitioner density, travel distance). Adjustment therefore shows that the SES associations "
+         "cannot be separated from the urban-rural gradient with county data - not that SES is irrelevant. "
+         "Phrase it that way in the response.", italic=True)
     para("Implication for the manuscript: the Abstract, Results, and Discussion should frame the SES findings "
          "as largely reflecting rurality, with labor force participation (and, more weakly, age structure and "
          "unemployment) as the associations that remain. This is a substantive change in emphasis - review "
@@ -308,10 +331,14 @@ if hh_available:
     hhd = S6[S6.variant.str.startswith("Denominator")]
     p24 = P[P.year == 2024].assign(gq_share=lambda d_: 100 * d_.gq_pop / d_.adult_pop).sort_values(
         "gq_share", ascending=False).head(5)
-    para("Group-quarters populations (prisons, dormitories, nursing facilities) are large in several counties: "
-         + "; ".join(f"{r.county_name.replace(' County', '')} {r.gq_share:.0f}% of adults (rate "
+    para("Group-quarters populations (prisons, dormitories, nursing facilities; all ages) are large relative to "
+         "the adult population in several counties: "
+         + "; ".join(f"{r.county_name.replace(' County', '')} {r.gq_share:.0f}% (rate "
                      f"{r.rate_v1:.1f} -> {r.rate_hh_adults:.1f} per 1,000 household adults)"
-                     for r in p24.itertuples()) + " (2024; group-quarters population includes all ages).")
+                     for r in p24.itertuples()) + " (2024 ACS 5-year). ACS group-quarters estimates for small counties are "
+         "imprecise (Forest: "
+         f"{int(P[(P.year == 2019) & (P.county_fips == R.FOREST)].gq_pop.iloc[0]):,} in the 2015-2019 release vs. "
+         f"{int(P[(P.year == 2024) & (P.county_fips == R.FOREST)].gq_pop.iloc[0]):,} in 2020-2024).")
     hl = hhd[hhd.measure == lf]
     para(f"Household-adult denominator (ACS B09021): maximum |dr| = {hhd.delta_r.abs().max():.3f}, "
          f"|drho| = {hhd.delta_rho.abs().max():.3f} across all measures and years (sheet S6_Sensitivity). "
@@ -356,7 +383,10 @@ para(f"Interpretation: counties bordering states with operating adult-use retail
      f"{(1 - e0.IRR) * 100:.0f}% lower after exposure (IRR {e0.IRR:.2f}, 95% CI {e0.CI_low:.2f}-{e0.CI_high:.2f}). "
      f"However, the estimate disappears when county-specific linear trends are added (IRR {e1.IRR:.3f}, "
      f"{p_(e1.p)}): the border counties were already on flatter trajectories, so cross-border access and "
-     "saturation cannot be separated with these data - consistent with the reviewer's caveat.")
+     "saturation cannot be separated with these data - consistent with the reviewer's caveat. Limitations: "
+     "exposure uses statewide retail start dates, not the location of the nearest dispensary (New York's "
+     "licensed stores opened slowly, and few were near Pennsylvania in 2023), and three of five exposure years "
+     "are post-period for most exposed counties, leaving few pre/post contrasts.")
 NYR = S["S7e_NYborder_ranks"]
 lowq = int((NYR.rank_2019 <= 17).sum())
 para(f"R2.9 (NY border): {lowq} of {len(NYR)} NY-border counties ranked in the lowest quartile of rates in 2019, "
@@ -365,9 +395,9 @@ para(f"R2.9 (NY border): {lowq} of {len(NYR)} NY-border counties ranked in the l
      + f". NY-border vs. all other counties, Mann-Whitney: 2019 {p_(BT.iloc[2].p)}, 2020 {p_(BT.iloc[3].p)}. "
      "Erie County (Erie city) is the exception. Cross-border purchasing cannot explain the low baseline rates; "
      "rurality, age structure, and access (dispensaries, certifying practitioners) are more likely contributors.")
-suggest("With the exception of Erie County, rates in counties bordering New York were among the lowest in the state from 2019 onward, before "
+suggest(f"{lowq} of the {len(NYR)} counties bordering New York had certification rates in the lowest quartile of the state in 2019, before "
         "adult-use retail sales began in New York in December 2022, indicating that cross-border access does "
-        "not explain the low baseline rates. After adult-use sales began in New Jersey, New York, and Maryland, "
+        "not explain their low baseline rates. After adult-use sales began in New Jersey, New York, and Maryland, "
         "certification rates in bordering counties grew less than in interior counties; however, this difference "
         "was not distinguishable from pre-existing differences in county trajectories (Table S7), and saturation "
         "in early-adopting counties remains an alternative explanation.")
@@ -401,16 +431,32 @@ table(LF[["year", "rho_LFP_vs_pct65", "partial_spearman_rate_LFP_given_pct65", "
           "NB_IRR_LFP_unadjusted", "NB_IRR_LFP_adjusted_pct65", "CI_low", "CI_high", "p_adj"]],
       {"p_partial_spearman": p_, "p_adj": p_})
 
+# ---------------------------------------------------------------- verification
+h("Verification performed")
+for t_ in ["Table 1: all 204 coefficients reproduced exactly from the panel (fresh ACS pull from the Census API).",
+           "Certification counts, statuses, created dates, and treatment periods re-counted from the raw CSV files "
+           "with independent code (Python csv module): all AD counts match.",
+           "Moran's I recomputed by hand from the weights matrix (identical); weights symmetric, no isolates.",
+           "Negative binomial IRRs re-estimated with an independent likelihood (scipy): maximum difference 0.00002; "
+           "all 306 NB fits converged.",
+           "Panel interactions re-estimated as clustered NB GLMs: same direction and significance as the GEE.",
+           "Border effect re-estimated as a two-way fixed-effects regression of log rate: 0.91 (P=0.002), "
+           "matching the Poisson estimate.",
+           "Benjamini-Hochberg count recomputed (76 of 102 measure-years)."]:
+    bullet(t_)
+
 # ---------------------------------------------------------------- files
 h("Files")
 for f, d_ in [("outputs/tables/Revision_Results.xlsx", "all analyses; README sheet maps sheets to comments"),
               ("outputs/tables/R1.1_certification_accounting.xlsx", "R1.1 accounting (local only: contains ZIP-level counts)"),
               ("outputs/tables/county_year_panel.csv", "analysis panel (county-level aggregates)"),
-              ("outputs/figures/Fig_R1_forest_2024.*", "candidate Figure 6 (+ Prism CSV)"),
+              ("outputs/figures/Fig_R1_forest_2024.*", "candidate Figure 6: unadjusted vs. RUCC-adjusted (+ Prism CSV)"),
+              ("outputs/figures/FigS_R1_forest_2024_all_models.*", "supplement: adds % rural-adjusted and spatial-error estimates"),
               ("outputs/figures/Fig_R1_LISA_2024.*", "LISA cluster map (candidate Fig 1F or supplement)"),
               ("outputs/figures/Fig_R1_border_change.*", "border groups and 2022-2024 change (supplement / response)")]:
     bullet(f"{f} - {d_}")
 
+os.makedirs(os.path.join(R.REV_DIR, "docs"), exist_ok=True)
 out = os.path.join(R.REV_DIR, "docs", "Revision_Analysis_Report.docx")
 doc.save(out)
 print("wrote", out)
