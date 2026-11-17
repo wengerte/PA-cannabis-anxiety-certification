@@ -136,17 +136,24 @@ bullet("No patient identifier exists, so certifications cannot be de-duplicated 
        f"renewed late in the same year. (a) or (b) applies to at most {d.a_or_b_pct.max():.1f}% of AD "
        f"certifications in any year ({d.a_or_b_pct.iloc[-1]:.2f}% in 2024). (c) cannot be counted; its "
        f"theoretical maximum is {d.c_theoretical_max_pct.iloc[1:].min():.0f}-{d.c_theoretical_max_pct.iloc[1:].max():.0f}% "
-       "in 2020-2024 (every 12-month certification created in the first 60 days of the year paired with an early "
-       "renewal in the last 60 days); the true figure is lower because renewal is not universal and repeat "
+       "in 2020-2024 (the smaller of the number of 12-month certifications created in the first 60 days of the "
+       "year and the number created in the last 60 days); the true figure is lower because renewal is not universal and repeat "
        "renewals are created about 12 months apart.")
+sigp = A.assign(sr=A.p_r < .05, ss=A.p_rho < .05).groupby("measure")[["sr", "ss"]].sum()
+sigm = mo.assign(sr=mo.p_r < .05, ss=mo.p_rho < .05).groupby("measure")[["sr", "ss"]].sum()
+diffs = [(meas, meth, int(sigp.loc[meas, c]), int(sigm.loc[meas, c]))
+         for meas in sigp.index for c, meth in (("sr", "Pearson"), ("ss", "Spearman"))
+         if sigp.loc[meas, c] != sigm.loc[meas, c]]
+same = len(sigp) - len({x[0] for x in diffs})
+diff_txt = "; ".join(f"{m_.split(' (')[0]} by {meth} ({a_}->{b_} years)" for m_, meth, a_, b_ in diffs)
 bullet("Sensitivity analysis that removes mechanism (c): rates recomputed from certifications created March-"
        "October only (no same-year early-renewal pair can fall entirely in that window). Maximum change in any "
-       f"Table 1 coefficient: |dr| = {mo.delta_r.abs().max():.3f}, |drho| = {mo.delta_rho.abs().max():.3f}; "
-       f"significant measure-years by Spearman {int((mo.p_rho < .05).sum())} vs. "
-       f"{int((A.p_rho < .05).sum())} in the primary analysis (sheet S6_Sensitivity).")
-bullet(f"2019 is a partial year: AD became a qualifying condition on July 20, 2019. {int(m.loc[7:12, 2019].sum()):,} "
-       f"of {int(m[2019].sum()):,} 2019 AD certifications were created July-December; {pre} carry a created date "
-       "before July 20, 2019. These are most likely certifications created earlier and later amended to add AD, "
+       f"Table 1 coefficient: |dr| = {mo.delta_r.abs().max():.3f}, |drho| = {mo.delta_rho.abs().max():.3f}. "
+       f"The number of significant years was identical for {same} of {len(sigp)} measures"
+       + (f"; differences: {diff_txt}." if diffs else ".") + " (sheet S6_Sensitivity).")
+bullet(f"2019 is a partial year: AD became a qualifying condition on July 20, 2019. {int(m[2019].sum()) - pre:,} "
+       f"of {int(m[2019].sum()):,} 2019 AD certifications were created on or after July 20; {pre} carry a created "
+       "date before July 20, 2019. These are most likely certifications created earlier and later amended to add AD, "
        "or entered as the condition was being added [confirm with DOH before stating a reason].")
 dd = d[["year", "ad_certifications", "a_or_b_n", "a_or_b_pct", "c_theoretical_max_early_renewal_pairs",
         "c_theoretical_max_pct", "treatment_period_12_months_pct"]].copy()
@@ -176,15 +183,14 @@ suggest("Each annual record contains the certifications created in that calendar
         "were assigned to the year of creation. Because the de-identified record contains no patient "
         "identifier, counts and rates refer to certifications rather than unique patients; an individual can "
         "contribute more than one certification to a year through a short treatment period, a re-issued "
-        "certification, or a renewal created before the prior certification expired. Results were unchanged "
-        "when rates were computed from certifications created between March and October only, which excludes "
-        "any same-year renewal pair (Table S6). AD became a qualifying condition on July 20, 2019; 2019 is "
+        "certification, or a renewal created before the prior certification expired. Results were essentially "
+        "unchanged when rates were computed from certifications created between March and October only, which "
+        "excludes any same-year renewal pair (all coefficients within "
+        f"{max(mo.delta_r.abs().max(), mo.delta_rho.abs().max()):.2f} of the primary estimates; Table S6). AD became a qualifying condition on July 20, 2019; 2019 is "
         "therefore a partial year. Statewide totals exceed the sum of county totals by "
         f"{int(r24.AD_certifications_statewide - r24.county_sum_submitted_v1)} certifications in 2024 "
         f"({int(r24.AD_certs_unmatched_ZIP_dropped_v1)} records with ZIP codes absent from the HUD crosswalk, "
         "partly offset by allocation and rounding).")
-para("Check the 'results were unchanged' sentence against the March-October numbers above before using it.",
-     italic=True)
 
 # ---------------------------------------------------------------- R1.2
 h("R1.2  Exploratory framing; spatial autocorrelation; population-weighted count models")
@@ -219,9 +225,10 @@ para("The suggested text below describes the unadjusted count models; after adju
      "these associations attenuate (R1.3), so combine it with the R1.3 text.", italic=True)
 suggest("Certification rates were spatially clustered in every year (Moran's I = "
         f"{mp.MoranI.min():.2f}-{mp.MoranI.max():.2f}, P <= {mp.p_perm.max():.3f}; Table S4), with a high-rate "
-        "cluster in central and northeastern Pennsylvania and a low-rate cluster along the northern tier. In "
+        "cluster in south-central and east-central Pennsylvania and a low-rate cluster in the northwestern and "
+        "north-central counties (local Moran's I; Figure S[x]). In "
         "population-weighted negative binomial models, the associations with age structure, educational "
-        "attainment, and labor force participation persisted, whereas associations with income were "
+        "attainment, and labor force participation persisted, whereas associations with income "
         "were borderline in 2024 and those with racial and ethnic composition were not significant (Table S5). "
         "Spatial-error models, which account for residual spatial autocorrelation, gave the same pattern for age, "
         "income, educational attainment, and labor force participation (Table S5).")
@@ -384,9 +391,10 @@ para(f"Interpretation: counties bordering states with operating adult-use retail
      f"However, the estimate disappears when county-specific linear trends are added (IRR {e1.IRR:.3f}, "
      f"{p_(e1.p)}): the border counties were already on flatter trajectories, so cross-border access and "
      "saturation cannot be separated with these data - consistent with the reviewer's caveat. Limitations: "
-     "exposure uses statewide retail start dates, not the location of the nearest dispensary (New York's "
-     "licensed stores opened slowly, and few were near Pennsylvania in 2023), and three of five exposure years "
-     "are post-period for most exposed counties, leaving few pre/post contrasts.")
+     "exposure uses statewide retail start dates, not the location or opening date of the nearest dispensary "
+     "(New York's licensed retail network expanded gradually after December 2022 [verify before citing]), and "
+     "exposed counties have only two or three post-exposure years in the 2020-2024 window, leaving few "
+     "pre/post contrasts.")
 NYR = S["S7e_NYborder_ranks"]
 lowq = int((NYR.rank_2019 <= 17).sum())
 para(f"R2.9 (NY border): {lowq} of {len(NYR)} NY-border counties ranked in the lowest quartile of rates in 2019, "
