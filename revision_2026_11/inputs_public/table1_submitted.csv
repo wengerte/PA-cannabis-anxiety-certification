@@ -1,0 +1,205 @@
+measure,stat,year,coef,p_text
+Median age (years),pearson,2019,-0.337,0.005
+Median age (years),pearson,2020,-0.347,0.004
+Median age (years),pearson,2021,-0.372,0.002
+Median age (years),pearson,2022,-0.379,0.002
+Median age (years),pearson,2023,-0.388,0.001
+Median age (years),pearson,2024,-0.393,0.001
+Median age (years),spearman,2019,-0.343,0.004
+Median age (years),spearman,2020,-0.338,0.005
+Median age (years),spearman,2021,-0.366,0.002
+Median age (years),spearman,2022,-0.394,0.001
+Median age (years),spearman,2023,-0.407,0.001
+Median age (years),spearman,2024,-0.405,0.001
+Population 65 and over (%),pearson,2019,-0.42,<0.001
+Population 65 and over (%),pearson,2020,-0.421,<0.001
+Population 65 and over (%),pearson,2021,-0.405,0.001
+Population 65 and over (%),pearson,2022,-0.413,0.001
+Population 65 and over (%),pearson,2023,-0.384,0.001
+Population 65 and over (%),pearson,2024,-0.379,0.002
+Population 65 and over (%),spearman,2019,-0.451,<0.001
+Population 65 and over (%),spearman,2020,-0.43,<0.001
+Population 65 and over (%),spearman,2021,-0.427,<0.001
+Population 65 and over (%),spearman,2022,-0.428,<0.001
+Population 65 and over (%),spearman,2023,-0.41,0.001
+Population 65 and over (%),spearman,2024,-0.397,0.001
+"White alone, not Hispanic/Latino (%)",pearson,2019,-0.178,0.151
+"White alone, not Hispanic/Latino (%)",pearson,2020,-0.193,0.118
+"White alone, not Hispanic/Latino (%)",pearson,2021,-0.123,0.321
+"White alone, not Hispanic/Latino (%)",pearson,2022,-0.118,0.342
+"White alone, not Hispanic/Latino (%)",pearson,2023,-0.093,0.454
+"White alone, not Hispanic/Latino (%)",pearson,2024,-0.071,0.570
+"White alone, not Hispanic/Latino (%)",spearman,2019,-0.36,0.003
+"White alone, not Hispanic/Latino (%)",spearman,2020,-0.332,0.006
+"White alone, not Hispanic/Latino (%)",spearman,2021,-0.302,0.013
+"White alone, not Hispanic/Latino (%)",spearman,2022,-0.342,0.005
+"White alone, not Hispanic/Latino (%)",spearman,2023,-0.305,0.012
+"White alone, not Hispanic/Latino (%)",spearman,2024,-0.258,0.035
+Black or African American (%),pearson,2019,0.071,0.566
+Black or African American (%),pearson,2020,0.018,0.887
+Black or African American (%),pearson,2021,-0.042,0.738
+Black or African American (%),pearson,2022,-0.041,0.739
+Black or African American (%),pearson,2023,-0.085,0.496
+Black or African American (%),pearson,2024,-0.106,0.393
+Black or African American (%),spearman,2019,0.311,0.010
+Black or African American (%),spearman,2020,0.217,0.078
+Black or African American (%),spearman,2021,0.164,0.185
+Black or African American (%),spearman,2022,0.21,0.088
+Black or African American (%),spearman,2023,0.166,0.179
+Black or African American (%),spearman,2024,0.139,0.262
+"Hispanic or Latino, any race (%)",pearson,2019,0.12,0.332
+"Hispanic or Latino, any race (%)",pearson,2020,0.223,0.069
+"Hispanic or Latino, any race (%)",pearson,2021,0.197,0.110
+"Hispanic or Latino, any race (%)",pearson,2022,0.197,0.110
+"Hispanic or Latino, any race (%)",pearson,2023,0.189,0.125
+"Hispanic or Latino, any race (%)",pearson,2024,0.179,0.148
+"Hispanic or Latino, any race (%)",spearman,2019,0.233,0.058
+"Hispanic or Latino, any race (%)",spearman,2020,0.286,0.019
+"Hispanic or Latino, any race (%)",spearman,2021,0.312,0.010
+"Hispanic or Latino, any race (%)",spearman,2022,0.349,0.004
+"Hispanic or Latino, any race (%)",spearman,2023,0.335,0.006
+"Hispanic or Latino, any race (%)",spearman,2024,0.32,0.008
+Asian alone (%),pearson,2019,0.399,0.001
+Asian alone (%),pearson,2020,0.351,0.004
+Asian alone (%),pearson,2021,0.247,0.044
+Asian alone (%),pearson,2022,0.243,0.047
+Asian alone (%),pearson,2023,0.179,0.147
+Asian alone (%),pearson,2024,0.136,0.273
+Asian alone (%),spearman,2019,0.407,0.001
+Asian alone (%),spearman,2020,0.369,0.002
+Asian alone (%),spearman,2021,0.265,0.030
+Asian alone (%),spearman,2022,0.306,0.012
+Asian alone (%),spearman,2023,0.241,0.050
+Asian alone (%),spearman,2024,0.236,0.055
+Median household income ($),pearson,2019,0.485,<0.001
+Median household income ($),pearson,2020,0.506,<0.001
+Median household income ($),pearson,2021,0.42,<0.001
+Median household income ($),pearson,2022,0.407,0.001
+Median household income ($),pearson,2023,0.311,0.010
+Median household income ($),pearson,2024,0.248,0.043
+Median household income ($),spearman,2019,0.434,<0.001
+Median household income ($),spearman,2020,0.517,<0.001
+Median household income ($),spearman,2021,0.46,<0.001
+Median household income ($),spearman,2022,0.441,<0.001
+Median household income ($),spearman,2023,0.348,0.004
+Median household income ($),spearman,2024,0.293,0.016
+Per capita income ($),pearson,2019,0.501,<0.001
+Per capita income ($),pearson,2020,0.499,<0.001
+Per capita income ($),pearson,2021,0.408,0.001
+Per capita income ($),pearson,2022,0.405,0.001
+Per capita income ($),pearson,2023,0.312,0.010
+Per capita income ($),pearson,2024,0.244,0.047
+Per capita income ($),spearman,2019,0.485,<0.001
+Per capita income ($),spearman,2020,0.516,<0.001
+Per capita income ($),spearman,2021,0.424,<0.001
+Per capita income ($),spearman,2022,0.424,<0.001
+Per capita income ($),spearman,2023,0.35,0.004
+Per capita income ($),spearman,2024,0.268,0.028
+Median gross rent ($),pearson,2019,0.378,0.002
+Median gross rent ($),pearson,2020,0.42,<0.001
+Median gross rent ($),pearson,2021,0.342,0.005
+Median gross rent ($),pearson,2022,0.333,0.006
+Median gross rent ($),pearson,2023,0.219,0.074
+Median gross rent ($),pearson,2024,0.173,0.162
+Median gross rent ($),spearman,2019,0.388,0.001
+Median gross rent ($),spearman,2020,0.485,<0.001
+Median gross rent ($),spearman,2021,0.436,<0.001
+Median gross rent ($),spearman,2022,0.442,<0.001
+Median gross rent ($),spearman,2023,0.356,0.003
+Median gross rent ($),spearman,2024,0.289,0.018
+Below poverty line (%),pearson,2019,-0.327,0.007
+Below poverty line (%),pearson,2020,-0.378,0.002
+Below poverty line (%),pearson,2021,-0.343,0.005
+Below poverty line (%),pearson,2022,-0.344,0.004
+Below poverty line (%),pearson,2023,-0.235,0.056
+Below poverty line (%),pearson,2024,-0.142,0.251
+Below poverty line (%),spearman,2019,-0.312,0.010
+Below poverty line (%),spearman,2020,-0.393,0.001
+Below poverty line (%),spearman,2021,-0.332,0.006
+Below poverty line (%),spearman,2022,-0.294,0.016
+Below poverty line (%),spearman,2023,-0.199,0.107
+Below poverty line (%),spearman,2024,-0.078,0.528
+Households receiving SNAP (%),pearson,2019,-0.269,0.027
+Households receiving SNAP (%),pearson,2020,-0.311,0.010
+Households receiving SNAP (%),pearson,2021,-0.273,0.025
+Households receiving SNAP (%),pearson,2022,-0.284,0.020
+Households receiving SNAP (%),pearson,2023,-0.244,0.046
+Households receiving SNAP (%),pearson,2024,-0.202,0.102
+Households receiving SNAP (%),spearman,2019,-0.24,0.051
+Households receiving SNAP (%),spearman,2020,-0.308,0.011
+Households receiving SNAP (%),spearman,2021,-0.216,0.080
+Households receiving SNAP (%),spearman,2022,-0.249,0.042
+Households receiving SNAP (%),spearman,2023,-0.178,0.149
+Households receiving SNAP (%),spearman,2024,-0.126,0.310
+High school diploma or GED (%),pearson,2019,-0.435,<0.001
+High school diploma or GED (%),pearson,2020,-0.409,0.001
+High school diploma or GED (%),pearson,2021,-0.357,0.003
+High school diploma or GED (%),pearson,2022,-0.387,0.001
+High school diploma or GED (%),pearson,2023,-0.311,0.010
+High school diploma or GED (%),pearson,2024,-0.284,0.020
+High school diploma or GED (%),spearman,2019,-0.381,0.001
+High school diploma or GED (%),spearman,2020,-0.356,0.003
+High school diploma or GED (%),spearman,2021,-0.321,0.008
+High school diploma or GED (%),spearman,2022,-0.387,0.001
+High school diploma or GED (%),spearman,2023,-0.345,0.004
+High school diploma or GED (%),spearman,2024,-0.32,0.008
+"Some college, no degree (%)",pearson,2019,-0.143,0.248
+"Some college, no degree (%)",pearson,2020,-0.084,0.499
+"Some college, no degree (%)",pearson,2021,-0.087,0.483
+"Some college, no degree (%)",pearson,2022,-0.103,0.407
+"Some college, no degree (%)",pearson,2023,-0.141,0.256
+"Some college, no degree (%)",pearson,2024,-0.1,0.419
+"Some college, no degree (%)",spearman,2019,-0.09,0.471
+"Some college, no degree (%)",spearman,2020,-0.008,0.951
+"Some college, no degree (%)",spearman,2021,-0.014,0.911
+"Some college, no degree (%)",spearman,2022,-0.059,0.634
+"Some college, no degree (%)",spearman,2023,-0.091,0.462
+"Some college, no degree (%)",spearman,2024,-0.06,0.628
+Associate's degree (%),pearson,2019,0.139,0.260
+Associate's degree (%),pearson,2020,0.082,0.511
+Associate's degree (%),pearson,2021,0.158,0.202
+Associate's degree (%),pearson,2022,0.116,0.351
+Associate's degree (%),pearson,2023,0.058,0.640
+Associate's degree (%),pearson,2024,0.071,0.569
+Associate's degree (%),spearman,2019,0.125,0.314
+Associate's degree (%),spearman,2020,0.021,0.865
+Associate's degree (%),spearman,2021,0.067,0.588
+Associate's degree (%),spearman,2022,0.029,0.814
+Associate's degree (%),spearman,2023,-0.016,0.901
+Associate's degree (%),spearman,2024,0.012,0.921
+Bachelor's degree or higher (%),pearson,2019,0.478,<0.001
+Bachelor's degree or higher (%),pearson,2020,0.429,<0.001
+Bachelor's degree or higher (%),pearson,2021,0.367,0.002
+Bachelor's degree or higher (%),pearson,2022,0.383,0.001
+Bachelor's degree or higher (%),pearson,2023,0.316,0.009
+Bachelor's degree or higher (%),pearson,2024,0.273,0.025
+Bachelor's degree or higher (%),spearman,2019,0.45,<0.001
+Bachelor's degree or higher (%),spearman,2020,0.388,0.001
+Bachelor's degree or higher (%),spearman,2021,0.351,0.004
+Bachelor's degree or higher (%),spearman,2022,0.378,0.002
+Bachelor's degree or higher (%),spearman,2023,0.339,0.005
+Bachelor's degree or higher (%),spearman,2024,0.297,0.015
+Labor force participation rate (%),pearson,2019,0.484,<0.001
+Labor force participation rate (%),pearson,2020,0.621,<0.001
+Labor force participation rate (%),pearson,2021,0.616,<0.001
+Labor force participation rate (%),pearson,2022,0.599,<0.001
+Labor force participation rate (%),pearson,2023,0.546,<0.001
+Labor force participation rate (%),pearson,2024,0.494,<0.001
+Labor force participation rate (%),spearman,2019,0.622,<0.001
+Labor force participation rate (%),spearman,2020,0.715,<0.001
+Labor force participation rate (%),spearman,2021,0.663,<0.001
+Labor force participation rate (%),spearman,2022,0.635,<0.001
+Labor force participation rate (%),spearman,2023,0.572,<0.001
+Labor force participation rate (%),spearman,2024,0.509,<0.001
+Unemployment rate (%),pearson,2019,-0.331,0.006
+Unemployment rate (%),pearson,2020,-0.302,0.013
+Unemployment rate (%),pearson,2021,-0.355,0.003
+Unemployment rate (%),pearson,2022,-0.287,0.019
+Unemployment rate (%),pearson,2023,-0.285,0.019
+Unemployment rate (%),pearson,2024,-0.199,0.106
+Unemployment rate (%),spearman,2019,-0.369,0.002
+Unemployment rate (%),spearman,2020,-0.371,0.002
+Unemployment rate (%),spearman,2021,-0.363,0.003
+Unemployment rate (%),spearman,2022,-0.298,0.014
+Unemployment rate (%),spearman,2023,-0.286,0.019
+Unemployment rate (%),spearman,2024,-0.205,0.096
